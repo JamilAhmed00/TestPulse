@@ -86,31 +86,11 @@ export default function ApplyConfirmation() {
     if (!student || !university) return;
 
     setConfirming(true);
-    
-    // Simulate application submission
-    setTimeout(() => {
-      const newApplication: Application = {
-        id: Date.now().toString(),
-        student_id: student.id,
-        university_id: university.id,
-        status: 'pending',
-        auto_apply_enabled: true,
-        applied_at: null,
-        result: null,
-        marks_required: 60,
-        marks_obtained: 0,
-        transaction_id: null,
-        admission_card_url: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
 
-      applicationStorage.saveApplication(newApplication);
-      setApplication(newApplication);
-      setConfirming(false);
-      setWorkflowActive(true);
-      startWorkflow();
-    }, 1000);
+    // Redirect to checkout page
+    setTimeout(() => {
+      navigate(`/checkout?university=${university.id}`);
+    }, 500);
   };
 
   const startWorkflow = () => {

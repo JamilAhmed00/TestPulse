@@ -11,6 +11,7 @@ import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import Circulars from './pages/Circulars';
 import ApplyConfirmation from './pages/ApplyConfirmation';
+import AgentCheckout from './pages/AgentCheckout';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -84,6 +85,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ApplyConfirmation />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/checkout"
+          element={
+            <ProtectedRoute>
+              <AgentCheckout />
             </ProtectedRoute>
           }
         />
