@@ -232,10 +232,10 @@ export default function LandingPage() {
         
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="text-center mb-12">
-            <div className="inline-flex items-center gap-2 bg-red-100 border border-red-200 rounded-full px-4 py-2 mb-4">
+            {/* <div className="inline-flex items-center gap-2 bg-red-100 border border-red-200 rounded-full px-4 py-2 mb-4">
               <AlertCircle className="text-red-600" size={20} />
               <span className="text-red-900 font-semibold text-sm">The Problem We're Solving</span>
-            </div>
+            </div> */}
             <h2 className="text-4xl md:text-5xl font-bold mb-4 text-slate-900">
               <span className="text-red-600">726,000 Students.</span> <span className="text-slate-900">15-20 Hours Each.</span>
             </h2>
