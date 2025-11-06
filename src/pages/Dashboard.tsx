@@ -121,7 +121,7 @@ export default function Dashboard() {
 
   return (
     // --- COLOR UPDATE: Main background gradient ---
-    <div className="min-h-screen bg-gradient-to-br from-[#88FFF7]/20 via-white to-[#7DEDFF]/20">
+    <div className="min-h-screen bg-gradient-to-br from-[#7C83FD]/100 via-white to-[#7C83FD]/100">
       <Header />
 
       <div className="w-full pt-24">
@@ -150,7 +150,7 @@ export default function Dashboard() {
                   <div className="p-2 bg-white/20 rounded-lg"><ActionIcon size={24} /></div>
                   <h3 className="text-lg font-bold">{nextAction.title}</h3>
                 </div>
-                <p className={`${nextAction.color === 'success' ? 'text-sky-900/80' : 'text-white/90'} text-sm mb-4`}>{nextAction.description}</p>
+                <p className={`${nextAction.color === 'blac' ? 'text-sky-900/80' : 'text-white/90'} text-sm mb-4`}>{nextAction.description}</p>
                 <button
                   onClick={() => navigate(nextAction.path)}
                   className="w-full bg-white text-slate-800 hover:bg-[#88FFF7]/50 font-bold py-3 px-4 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105 flex items-center justify-center gap-2"

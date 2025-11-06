@@ -70,7 +70,7 @@ export default function Results() {
   const publishedResultsCount = examResults.length;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-to-br from-[#7C83FD]/100 via-white to-[#7C83FD]/100">
       <Header />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-28">
@@ -108,7 +108,7 @@ export default function Results() {
 
         {/* === EXAM RESULTS SECTION (SCORE REMOVED) === */}
         <div className="grid md:grid-cols-1 gap-8">
-          <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="bg-white rounded-lg shadow-sm p-6 border-l-8 border-black-500">
             <h2 className="text-xl font-bold text-slate-900 mb-6 flex items-center gap-2">
               <BarChart3 className="text-blue-600" size={24} />
               Published Exam Results

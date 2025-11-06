@@ -139,7 +139,7 @@ export default function LandingPage() {
 
             {/* Main Headline - Staggered Animation */}
             <div className="space-y-6">
-              <h1 className={`text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold leading-[1.05] tracking-tight ${
+              <h1 className={`text-xl md:text-6xl lg:text-7xl xl:text-8xl font-extrabold leading-[1.05] tracking-tight ${
                 mounted ? 'opacity-100' : 'opacity-0'
               }`}>
                 <span 
@@ -148,7 +148,7 @@ export default function LandingPage() {
                   }`}
                   style={{ animationDelay: '0.2s' }}
                 >
-                  Stop Spending Hours
+                  From Hours to Minutes
                 </span>
                 <span 
                   className={`block bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-600 bg-clip-text text-transparent animate-gradient ${
@@ -156,7 +156,7 @@ export default function LandingPage() {
                   }`}
                   style={{ animationDelay: '0.4s' }}
                 >
-                  Filling Forms.
+                  {/* Filling Forms. */}
                 </span>
               </h1>
               
@@ -166,7 +166,7 @@ export default function LandingPage() {
                 }`}
                 style={{ animationDelay: '0.6s' }}
               >
-                Let AI Handle Your University Admission
+                TestPulse Handle Your University Admission Test Apply
               </h2>
             </div>
             

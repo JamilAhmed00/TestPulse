@@ -39,7 +39,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-br from-[#7C83FD]/100 via-white to-[#7C83FD]/100">
       <Header />
       <div className="flex items-center justify-center min-h-[calc(100vh-5rem)] px-4 py-12">
         <div className="w-full max-w-md">
