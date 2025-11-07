@@ -488,11 +488,11 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-4 py-2 mb-6">
             <Bot className="animate-pulse" size={20} />
-            <span className="font-semibold">AI Agent Ready</span>
+            <span className="font-semibold">TestPulse Agent Ready</span>
           </div>
           
           <h2 className="text-4xl md:text-5xl font-bold mb-6">
-            Ready to Let <span className="text-cyan-200">AI Handle</span> Your Admission?
+            Ready to Let <span className="text-cyan-200">TestPulse Handle</span> Your Admission?
           </h2>
           <p className="text-xl text-blue-100 mb-10 max-w-2xl mx-auto">
             Join thousands of HSC graduates who chose TestPulse—the first AI-powered admission automation agent for Bangladesh
@@ -519,7 +519,7 @@ export default function LandingPage() {
             <span className="text-xl font-bold text-white">TestPulse</span>
           </div>
           <p className="text-sm">
-            &copy; 2024 TestPulse. Your Smart Admission Ally. Empowering Bangladesh's future, one automated application at a time.
+            &copy;TestPulse. Your Smart Admission Ally. Empowering Bangladesh's future, one automated application at a time.
           </p>
         </div>
       </footer>
