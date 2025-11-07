@@ -5,7 +5,7 @@ export default function Footer() {
           <div className="text-center">
             <p className="text-lg font-semibold">Student Admission Portal</p>
             <p className="text-sm text-slate-400 mt-2">
-              Developed with ❤️ by The Dev Team
+              Developed By TestPulse
             </p>
             <p className="text-xs text-slate-500 mt-1">
               Contact us: contact@admissionportal.com
