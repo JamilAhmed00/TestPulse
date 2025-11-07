@@ -95,9 +95,9 @@ export const mockUniversities: University[] = [
       deadline: deadline.toISOString(),
       description: 'Leading university in Bangladesh',
       website: 'www.du.ac.bd',
-      circular_url: circularData.circular_url,
+      circular_url: 'https://admission.eis.du.ac.bd/bn/gf6s7h89rthg463786e4q6a3b679w6jrn46a',
       circular_text: circularData.circular_text,
-      guidelines_url: circularData.guidelines_url,
+      guidelines_url: 'https://admission.eis.du.ac.bd/bn/408b7c8ad06e4d9954fa2d948a01f508',
       created_at: new Date().toISOString(),
     };
   })(),
