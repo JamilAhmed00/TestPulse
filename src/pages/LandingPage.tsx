@@ -90,30 +90,43 @@ export default function LandingPage() {
 
       {/* Hero Section - Centered */}
       <section className="relative min-h-[calc(100vh-5rem)] flex items-center justify-center bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
-        {/* Enhanced Animated Background Elements */}
+        {/* Dynamic Background with Morphing Blobs */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute top-0 -right-40 w-[600px] h-[600px] bg-blue-500 rounded-full mix-blend-screen opacity-25 filter blur-3xl animate-float"></div>
-          <div className="absolute -bottom-20 -left-40 w-[600px] h-[600px] bg-cyan-500 rounded-full mix-blend-screen opacity-25 filter blur-3xl animate-float" style={{ animationDelay: '2s' }}></div>
-          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-purple-500 rounded-full mix-blend-screen opacity-15 filter blur-3xl animate-float" style={{ animationDelay: '4s' }}></div>
-          <div className="absolute top-1/4 right-1/4 w-[300px] h-[300px] bg-indigo-500 rounded-full mix-blend-screen opacity-20 filter blur-2xl animate-float" style={{ animationDelay: '1s' }}></div>
-          <div className="absolute bottom-1/4 left-1/4 w-[300px] h-[300px] bg-pink-500 rounded-full mix-blend-screen opacity-15 filter blur-2xl animate-float" style={{ animationDelay: '3s' }}></div>
+          <div className="absolute top-0 -right-40 w-[600px] h-[600px] bg-blue-500 rounded-full mix-blend-screen opacity-30 filter blur-3xl animate-morphing animate-float" style={{ animation: 'morphing 12s ease-in-out infinite, float 8s ease-in-out infinite' }}></div>
+          <div className="absolute -bottom-20 -left-40 w-[600px] h-[600px] bg-cyan-500 rounded-full mix-blend-screen opacity-25 filter blur-3xl animate-morphing" style={{ animation: 'morphing 14s ease-in-out infinite', animationDelay: '2s' }}></div>
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-blue-400 rounded-full mix-blend-screen opacity-20 filter blur-3xl animate-float" style={{ animationDelay: '4s' }}></div>
+          <div className="absolute top-1/4 right-1/3 w-[400px] h-[400px] bg-cyan-400 rounded-full mix-blend-screen opacity-20 filter blur-3xl animate-morphing" style={{ animation: 'morphing 13s ease-in-out infinite', animationDelay: '1s' }}></div>
+          <div className="absolute bottom-1/3 left-1/3 w-[350px] h-[350px] bg-blue-600 rounded-full mix-blend-screen opacity-15 filter blur-2xl animate-float" style={{ animationDelay: '3s' }}></div>
+
+          {/* Additional Aurora-like Effects */}
+          <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-[800px] h-[400px] bg-gradient-to-b from-cyan-500 via-blue-500 to-transparent rounded-full mix-blend-screen opacity-10 filter blur-3xl animate-aurora-glow"></div>
+          <div className="absolute bottom-0 right-0 w-[700px] h-[350px] bg-gradient-to-t from-blue-500 via-transparent to-transparent rounded-full mix-blend-screen opacity-10 filter blur-3xl animate-aurora-glow" style={{ animationDelay: '2s' }}></div>
         </div>
 
-        {/* Animated Grid Pattern Overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] opacity-60"></div>
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-900/50"></div>
+        {/* Animated Grid Pattern with Wave Effect */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] opacity-40"></div>
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-slate-900/60"></div>
 
-        {/* Floating Particles */}
+        {/* Scan Line Effect */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div className="absolute left-0 right-0 h-0.5 bg-gradient-to-b from-cyan-400/50 via-blue-400/30 to-transparent animate-scan-line opacity-20"></div>
+        </div>
+
+        {/* Floating Particles - Enhanced */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(20)].map((_, i) => (
+          {[...Array(30)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-1 h-1 bg-cyan-400/30 rounded-full"
+              className="absolute rounded-full"
               style={{
+                width: `${2 + Math.random() * 4}px`,
+                height: `${2 + Math.random() * 4}px`,
+                backgroundColor: ['rgba(34, 211, 238, 0.5)', 'rgba(59, 130, 246, 0.5)', 'rgba(139, 92, 246, 0.5)'][Math.floor(Math.random() * 3)],
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
-                animation: `particle ${5 + Math.random() * 10}s linear infinite`,
-                animationDelay: `${Math.random() * 5}s`,
+                boxShadow: `0 0 ${4 + Math.random() * 8}px currentColor`,
+                animation: `particle ${8 + Math.random() * 12}s linear infinite`,
+                animationDelay: `${Math.random() * 8}s`,
               }}
             />
           ))}
