@@ -94,7 +94,7 @@ export default function Circulars() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50">
+    <div className="min-h-screen bg-gradient-to-br from-[#7C83FD]/100 via-white to-[#7C83FD]/100">
       <Header />
 
       <div className="py-8 pt-28 px-6">
