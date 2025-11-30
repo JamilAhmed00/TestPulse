@@ -1,7 +1,13 @@
+import sys
+import asyncio
+
+# Fix for Windows Playwright async issue
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from playwright.async_api import async_playwright, Page, Browser
 from config import get_settings
 import logging
-import asyncio
 from typing import Optional, Dict
 import os
 
@@ -297,27 +303,51 @@ class DUAutomation:
             await self.page.wait_for_load_state('networkidle', timeout=60000)
             
             # Wait for loader to disappear (critical step)
-            try:
-                logger.info("Waiting for page loader to disappear...")
-                await self.page.wait_for_selector('.page-loader-wrapper', state='hidden', timeout=30000)
-                logger.info("Page loader disappeared")
-            except:
-                logger.warning("Page loader did not disappear within timeout")
+            # Try multiple common loader selectors
+            loader_selectors = [
+                '.page-loader-wrapper',
+                '.loader',
+                '.loading',
+                '.spinner',
+                '[class*="loader"]',
+                '[class*="loading"]',
+                '[class*="spinner"]',
+                'text=Please wait'
+            ]
+            
+            logger.info("Waiting for page loader to disappear...")
+            for selector in loader_selectors:
+                try:
+                    # Check if loader exists first
+                    loader = await self.page.query_selector(selector)
+                    if loader:
+                        logger.info(f"Found loader with selector: {selector}, waiting for it to disappear...")
+                        await self.page.wait_for_selector(selector, state='hidden', timeout=45000)
+                        logger.info(f"Loader disappeared: {selector}")
+                        break
+                except:
+                    continue
+            
+            # Extra wait after loader disappears
+            logger.info("Waiting for page to stabilize after loader...")
+            await asyncio.sleep(8)
             
             # Wait longer for SMS code to appear and page to fully render
             logger.info("Waiting for SMS code page to fully load...")
-            await asyncio.sleep(5)
             
             # Try to wait for specific content that indicates page is ready
             try:
                 # Wait for "16321" text to appear (indicates SMS instructions are loaded)
-                await self.page.wait_for_selector('text=16321', timeout=10000)
+                await self.page.wait_for_selector('text=16321', timeout=15000)
                 logger.info("SMS instructions detected, page is ready")
             except:
-                logger.warning("Could not detect 16321 text, proceeding anyway")
+                logger.warning("Could not detect 16321 text, waiting longer...")
+                # If we can't find the text, wait even longer
+                await asyncio.sleep(10)
             
             # Additional wait to ensure everything is rendered
-            await asyncio.sleep(3)
+            logger.info("Final wait to ensure page is fully rendered...")
+            await asyncio.sleep(5)
             
             # Take screenshot for debugging
             screenshot_path = f"./uploads/logs/sms_code_page_{int(asyncio.get_event_loop().time())}.png"

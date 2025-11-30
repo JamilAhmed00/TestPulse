@@ -1,4 +1,10 @@
+import sys
 import asyncio
+
+# Fix for Windows Playwright async issue
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 from typing import Dict, Optional
 import logging
 from rpa import DUAutomation

@@ -27,4 +27,6 @@ def get_db():
 def init_db():
     """Initialize database tables"""
     from models import UniApplication, UniDocument
+    from bup_models import BUPApplication, BUPJob, BUPDocument, BUPPayment
     Base.metadata.create_all(bind=engine)
+
