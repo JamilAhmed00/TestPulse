@@ -82,74 +82,86 @@ class BUPAutomation:
     
     async def select_faculty(self, faculty: str) -> Dict:
         """
-        Select faculty/program
-        Faculty parameter should be the exact program name from the website
+        Select faculty/program from table by finding row and clicking checkbox
         """
         try:
             logger.info(f"Selecting program: {faculty}")
             
-            # The faculty parameter should be the exact program name like:
-            # "Bachelor of Business Administration (General)"
-            # "Bachelor of Arts in English"
-            # etc.
+            # BUP uses a table with checkboxes having IDs like:
+            # MainContent_lvAdmSetup_CheckBox1_0, _1, _2, _3, _4
+            # We need to find which row index matches our program name
             
-            # Find checkbox by looking for the program name in the card
-            selectors = [
-                # Try to find checkbox near the program name text
-                f'text="{faculty}" >> xpath=ancestor::div[contains(@class, "card") or contains(@class, "program")] >> input[type="checkbox"]',
-                f'text="{faculty}" >> xpath=preceding::input[@type="checkbox"][1]',
-                # Try to find by partial text match
-                f'text=/{faculty.split("(")[0].strip()}/ >> xpath=ancestor::div >> input[type="checkbox"]',
-                # Generic approach - find all checkboxes and match by nearby text
-                f'input[type="checkbox"]:near(:text("{faculty}"))',
-            ]
+            # Get all program name spans
+            program_spans = await self.page.query_selector_all('span.fw-medium')
             
-            clicked = False
-            for selector in selectors:
-                try:
-                    checkbox = await self.page.wait_for_selector(selector, timeout=5000)
-                    if checkbox:
-                        await checkbox.click()
-                        logger.info(f"Clicked program checkbox using selector: {selector}")
-                        clicked = True
-                        break
-                except Exception as e:
-                    logger.debug(f"Selector failed: {selector}, error: {str(e)}")
-                    continue
+            logger.info(f"Found {len(program_spans)} program options")
             
-            if not clicked:
-                # Fallback: Get all checkboxes and find the right one by examining nearby text
-                logger.info("Trying fallback method: examining all checkboxes")
-                checkboxes = await self.page.query_selector_all('input[type="checkbox"]')
+            # Find the index of our program
+            program_index = None
+            for i, span in enumerate(program_spans):
+                span_text = await span.inner_text()
+                logger.info(f"Program {i}: {span_text}")
                 
-                for checkbox in checkboxes:
-                    try:
-                        # Get parent element and check if it contains the program name
-                        parent = await checkbox.evaluate_handle('el => el.closest(".card, .program-card, div")')
-                        parent_text = await parent.inner_text() if parent else ""
-                        
-                        if faculty in parent_text or faculty.split("(")[0].strip() in parent_text:
-                            await checkbox.click()
-                            logger.info(f"Clicked checkbox using fallback method")
-                            clicked = True
-                            break
-                    except:
-                        continue
+                # Check for exact match or handle HTML entities
+                if (faculty == span_text or 
+                    faculty.replace('&', '&amp;') == span_text or
+                    faculty == span_text.replace('&amp;', '&')):
+                    program_index = i
+                    logger.info(f"Found matching program at index {i}: {span_text}")
+                    break
             
-            if not clicked:
-                raise Exception(f"Could not find checkbox for program: {faculty}")
+            if program_index is None:
+                raise Exception(f"Program not found in list: {faculty}")
             
-            # Wait for selection to register
-            await asyncio.sleep(2)
+            # Now click the checkbox with the corresponding index
+            checkbox_id = f'MainContent_lvAdmSetup_CheckBox1_{program_index}'
+            logger.info(f"Attempting to click checkbox with ID: {checkbox_id}")
             
-            # Look for and click Apply/Continue/Next button
+            # The checkbox has an onclick handler that triggers ASP.NET postback
+            # We need to click it with JavaScript and wait for the page to reload
+            try:
+                # Click using JavaScript (more reliable for ASP.NET controls)
+                await self.page.evaluate(f'document.getElementById("{checkbox_id}").click()')
+                logger.info(f"Clicked checkbox using JavaScript: {checkbox_id}")
+                
+                # Wait for the postback to complete (page will reload/update)
+                await self.page.wait_for_load_state('networkidle', timeout=15000)
+                await asyncio.sleep(2)
+                
+                logger.info("Postback completed successfully")
+                
+                # Now click Apply button
+                return await self._click_apply_button(faculty)
+                
+            except Exception as e:
+                logger.error(f"Checkbox click or postback error: {str(e)}")
+                raise Exception(f"Failed to click checkbox or wait for postback: {str(e)}")
+
+
+            
+        except Exception as e:
+            logger.error(f"Faculty selection error: {str(e)}")
+            await self._capture_error_screenshot("faculty_selection")
+            return {"success": False, "message": f"Faculty selection failed: {str(e)}"}
+    
+    async def _click_apply_button(self, faculty: str) -> Dict:
+        """Helper method to click Apply/Proceed button after selection"""
+        try:
+            # Look for and click Apply/Proceed/Continue button
             apply_selectors = [
+                'button:has-text("PROCEED TO APPLICATION")',
+                'a:has-text("PROCEED TO APPLICATION")',
+                'input[value*="PROCEED"]',
+                'button:has-text("Proceed")',
+                'a:has-text("Proceed")',
                 'button:has-text("Apply")',
                 'input[value="Apply"]',
                 'a:has-text("Apply")',
                 'button:has-text("Continue")',
                 'button:has-text("Next")',
-                'a.btn:has-text("Apply")'
+                'a.btn:has-text("Apply")',
+                'input[type="submit"]',
+                'button[type="submit"]'
             ]
             
             for selector in apply_selectors:
@@ -160,7 +172,7 @@ class BUPAutomation:
                         is_visible = await apply_btn.is_visible()
                         if is_visible:
                             await apply_btn.click()
-                            logger.info(f"Clicked Apply button using: {selector}")
+                            logger.info(f"Clicked Proceed/Apply button using: {selector}")
                             break
                 except:
                     continue
@@ -170,14 +182,13 @@ class BUPAutomation:
             
             # Check if we're on a new page or if form appeared
             current_url = self.page.url
-            logger.info(f"Current URL after selection: {current_url}")
+            logger.info(f"Current URL after clicking proceed: {current_url}")
             
             return {"success": True, "message": f"Selected program: {faculty}"}
             
         except Exception as e:
-            logger.error(f"Faculty selection error: {str(e)}")
-            await self._capture_error_screenshot("faculty_selection")
-            return {"success": False, "message": f"Faculty selection failed: {str(e)}"}
+            logger.error(f"Apply button click error: {str(e)}")
+            return {"success": False, "message": f"Apply button failed: {str(e)}"}
     
     async def select_education_type(self, edu_type: str = "SSC/HSC") -> Dict:
         """
