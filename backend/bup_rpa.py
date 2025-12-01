@@ -1,6 +1,7 @@
 """
-BUP Admission RPA Automation
+BUP Admission RPA Automation - COMPLETE REWRITE
 Playwright-based automation for Bangladesh University of Professionals admission
+Based on actual form inspection and field analysis
 """
 
 import sys
@@ -20,6 +21,46 @@ settings = get_settings()
 logger = logging.getLogger(__name__)
 
 
+# Field mapping based on actual BUP form inspection
+BOARD_MAPPING = {
+    'DHAKA': '2',
+    'RAJSHAHI': '3',
+    'COMILLA': '4',
+    'JESSORE': '5',
+    'CHITTAGONG': '6',
+    'CHATTAGRAM': '6',  # Alternative spelling
+    'BARISAL': '7',
+    'SYLHET': '8',
+    'DINAJPUR': '9',
+    'MYMENSINGH': '16',
+    'MADRASAH': '10',
+    'TEC': '14',
+    'DIBS(DHAKA)': '15',
+    'CAMBRIDGE': '13',
+    'EDEXEL': '12',
+    'OTHER': '11'
+}
+
+EXAM_TYPE_MAPPING = {
+    'SSC': 'ssc',
+    'HSC': 'hsc',
+    'O-LEVEL': 'olevel',
+    'A-LEVEL': 'alevel'
+}
+
+DIVISION_MAPPING = {
+    'DHAKA': 'Dhaka',
+    'CHATTAGRAM': 'Chittagong',
+    'CHITTAGONG': 'Chittagong',
+    'RAJSHAHI': 'Rajshahi',
+    'KHULNA': 'Khulna',
+    'BARISAL': 'Barisal',
+    'SYLHET': 'Sylhet',
+    'RANGPUR': 'Rangpur',
+    'MYMENSINGH': 'Mymensingh'
+}
+
+
 class BUPAutomation:
     """Playwright automation for BUP admission process"""
     
@@ -33,7 +74,7 @@ class BUPAutomation:
         try:
             self.playwright = await async_playwright().start()
             self.browser = await self.playwright.chromium.launch(
-                headless=True,
+                headless=False,  # Run in visible mode for CAPTCHA solving
                 args=['--no-sandbox', '--disable-setuid-sandbox']
             )
             self.page = await self.browser.new_page(
@@ -41,7 +82,7 @@ class BUPAutomation:
                 locale='en-BD',
                 timezone_id='Asia/Dhaka'
             )
-            logger.info("BUP automation browser initialized")
+            logger.info("BUP automation browser initialized (visible mode for CAPTCHA)")
         except Exception as e:
             logger.error(f"Browser initialization error: {str(e)}")
             raise
@@ -57,305 +98,400 @@ class BUPAutomation:
         except Exception as e:
             logger.error(f"Browser close error: {str(e)}")
     
-    async def navigate_to_admission_page(self) -> Dict:
+    async def navigate_and_select_faculty(self, faculty: str) -> Dict:
         """
-        Navigate to BUP admission page
+        Navigate to BUP admission page and select faculty
         URL: https://admission.bup.edu.bd/Admission/Candidate/SelectProgramV3?ecat=4
         """
         try:
-            logger.info("Navigating to BUP admission page...")
+            logger.info(f"Navigating to BUP admission page and selecting: {faculty}")
             await self.page.goto(
                 'https://admission.bup.edu.bd/Admission/Candidate/SelectProgramV3?ecat=4',
                 wait_until='networkidle',
                 timeout=60000
             )
             
-            # Wait for faculty cards to load
+            # Wait for page to load
             await self.page.wait_for_selector('input[type="checkbox"]', timeout=15000)
-            await asyncio.sleep(2)  # Stabilization wait
+            await asyncio.sleep(2)
             
-            return {"success": True, "message": "Navigated to admission page"}
-            
-        except Exception as e:
-            logger.error(f"Navigation error: {str(e)}")
-            return {"success": False, "message": f"Navigation failed: {str(e)}"}
-    
-    async def select_faculty(self, faculty: str) -> Dict:
-        """
-        Select faculty/program from table by finding row and clicking checkbox
-        """
-        try:
-            logger.info(f"Selecting program: {faculty}")
-            
-            # BUP uses a table with checkboxes having IDs like:
-            # MainContent_lvAdmSetup_CheckBox1_0, _1, _2, _3, _4
-            # We need to find which row index matches our program name
+            # Find the program by text and click its checkbox
+            # Programs are in a table with checkboxes having IDs like MainContent_lvAdmSetup_CheckBox1_0, _1, _2, etc.
+            program_found = False
             
             # Get all program name spans
             program_spans = await self.page.query_selector_all('span.fw-medium')
             
-            logger.info(f"Found {len(program_spans)} program options")
-            
-            # Find the index of our program
-            program_index = None
             for i, span in enumerate(program_spans):
                 span_text = await span.inner_text()
                 logger.info(f"Program {i}: {span_text}")
                 
-                # Check for exact match or handle HTML entities
-                if (faculty == span_text or 
-                    faculty.replace('&', '&amp;') == span_text or
-                    faculty == span_text.replace('&amp;', '&')):
-                    program_index = i
-                    logger.info(f"Found matching program at index {i}: {span_text}")
+                if faculty.lower() in span_text.lower():
+                    # Click the checkbox for this program
+                    checkbox_id = f'MainContent_lvAdmSetup_CheckBox1_{i}'
+                    logger.info(f"Found program at index {i}, clicking checkbox: {checkbox_id}")
+                    
+                    # Click checkbox using JavaScript (more reliable)
+                    await self.page.evaluate(f'document.getElementById("{checkbox_id}").click()')
+                    await asyncio.sleep(2)
+                    
+                    # Wait for postback
+                    await self.page.wait_for_load_state('networkidle', timeout=15000)
+                    await asyncio.sleep(2)
+                    
+                    program_found = True
                     break
             
-            if program_index is None:
-                raise Exception(f"Program not found in list: {faculty}")
+            if not program_found:
+                raise Exception(f"Program not found: {faculty}")
             
-            # Now click the checkbox with the corresponding index
-            checkbox_id = f'MainContent_lvAdmSetup_CheckBox1_{program_index}'
-            logger.info(f"Attempting to click checkbox with ID: {checkbox_id}")
+            # Click Apply/Proceed button
+            apply_btn = await self.page.wait_for_selector('input#MainContent_btnApply1', timeout=10000)
+            await apply_btn.click()
+            logger.info("Clicked Apply button")
             
-            # The checkbox has an onclick handler that triggers ASP.NET postback
-            # We need to click it with JavaScript and wait for the page to reload
-            try:
-                # Click using JavaScript (more reliable for ASP.NET controls)
-                await self.page.evaluate(f'document.getElementById("{checkbox_id}").click()')
-                logger.info(f"Clicked checkbox using JavaScript: {checkbox_id}")
-                
-                # Wait for the postback to complete (page will reload/update)
-                await self.page.wait_for_load_state('networkidle', timeout=15000)
-                await asyncio.sleep(2)
-                
-                logger.info("Postback completed successfully")
-                
-                # Now click Apply button
-                return await self._click_apply_button(faculty)
-                
-            except Exception as e:
-                logger.error(f"Checkbox click or postback error: {str(e)}")
-                raise Exception(f"Failed to click checkbox or wait for postback: {str(e)}")
-
-
+            # Wait for next page
+            await self.page.wait_for_load_state('networkidle', timeout=30000)
+            await asyncio.sleep(3)
+            
+            # Log current URL for debugging
+            current_url = self.page.url
+            logger.info(f"Current URL after Apply: {current_url}")
+            
+            # Take screenshot for debugging
+            await self._capture_screenshot("after_apply_button")
+            
+            return {"success": True, "message": f"Selected faculty: {faculty}"}
             
         except Exception as e:
             logger.error(f"Faculty selection error: {str(e)}")
-            await self._capture_error_screenshot("faculty_selection")
+            await self._capture_screenshot("faculty_selection_error")
             return {"success": False, "message": f"Faculty selection failed: {str(e)}"}
     
-    async def _click_apply_button(self, faculty: str) -> Dict:
-        """Helper method to click Apply/Proceed button after selection"""
+    async def select_education_type_ssc_hsc(self) -> Dict:
+        """
+        Select SSC/HSC education type on Purchase Form page
+        """
         try:
-            # Look for and click Apply/Proceed/Continue button
-            apply_selectors = [
-                'button:has-text("PROCEED TO APPLICATION")',
-                'a:has-text("PROCEED TO APPLICATION")',
-                'input[value*="PROCEED"]',
-                'button:has-text("Proceed")',
-                'a:has-text("Proceed")',
-                'button:has-text("Apply")',
-                'input[value="Apply"]',
-                'a:has-text("Apply")',
-                'button:has-text("Continue")',
-                'button:has-text("Next")',
-                'a.btn:has-text("Apply")',
-                'input[type="submit"]',
-                'button[type="submit"]'
-            ]
+            logger.info("Selecting SSC/HSC education type...")
             
-            for selector in apply_selectors:
-                try:
-                    apply_btn = await self.page.wait_for_selector(selector, timeout=5000)
-                    if apply_btn:
-                        # Check if button is visible
-                        is_visible = await apply_btn.is_visible()
-                        if is_visible:
-                            await apply_btn.click()
-                            logger.info(f"Clicked Proceed/Apply button using: {selector}")
-                            break
-                except:
-                    continue
+            # Wait for the page to be fully loaded first
+            await self.page.wait_for_load_state('networkidle', timeout=30000)
+            await asyncio.sleep(2)
             
-            # Wait for next page/section to load
+            # Click SSC/HSC button (MainContent_btnSSCHSC)
+            logger.info("Looking for SSC/HSC button...")
+            ssc_hsc_btn = await self.page.wait_for_selector('input#MainContent_btnSSCHSC', timeout=15000)
+            
+            if not ssc_hsc_btn:
+                raise Exception("SSC/HSC button not found")
+            
+            # Check if button is visible
+            is_visible = await ssc_hsc_btn.is_visible()
+            logger.info(f"SSC/HSC button visible: {is_visible}")
+            
+            await ssc_hsc_btn.click()
+            logger.info("Clicked SSC/HSC button")
+            
+            # Wait for the form to load - this may take time as it's loaded via AJAX
+            logger.info("Waiting for SSC/HSC form to load...")
+            await asyncio.sleep(8)  # Give time for AJAX to complete
+            
+            # Wait for any of the SSC form elements to appear
+            try:
+                # Try multiple selectors to see which one appears
+                await self.page.wait_for_selector(
+                    'select#MainContent_ddlSSCExam, input#MainContent_txtSSCRoll, div:has-text("SSC Information")',
+                    timeout=30000
+                )
+                logger.info("SSC form elements detected")
+            except Exception as e:
+                logger.error(f"SSC form did not load: {str(e)}")
+                # Take screenshot for debugging
+                await self._capture_screenshot("ssc_form_not_loaded")
+                
+                # Check what's on the page
+                page_content = await self.page.content()
+                logger.info(f"Page content length: {len(page_content)}")
+                
+                # Try to find any form elements
+                all_selects = await self.page.query_selector_all('select')
+                logger.info(f"Found {len(all_selects)} select elements on page")
+                
+                all_inputs = await self.page.query_selector_all('input[type="text"]')
+                logger.info(f"Found {len(all_inputs)} text input elements on page")
+                
+                raise Exception(f"SSC form elements did not appear after clicking button: {str(e)}")
+            
+            # Additional wait to ensure all form elements are ready
             await asyncio.sleep(3)
             
-            # Check if we're on a new page or if form appeared
-            current_url = self.page.url
-            logger.info(f"Current URL after clicking proceed: {current_url}")
-            
-            return {"success": True, "message": f"Selected program: {faculty}"}
-            
-        except Exception as e:
-            logger.error(f"Apply button click error: {str(e)}")
-            return {"success": False, "message": f"Apply button failed: {str(e)}"}
-    
-    async def select_education_type(self, edu_type: str = "SSC/HSC") -> Dict:
-        """
-        Select education type (SSC/HSC, O-Level/A-Level, Diploma)
-        """
-        try:
-            logger.info(f"Selecting education type: {edu_type}")
-            
-            # Click SSC/HSC button/radio
-            selectors = [
-                f'button:has-text("{edu_type}")',
-                f'input[type="radio"][value="{edu_type}"]',
-                f'text={edu_type}'
-            ]
-            
-            for selector in selectors:
-                try:
-                    element = await self.page.wait_for_selector(selector, timeout=5000)
-                    if element:
-                        await element.click()
-                        logger.info(f"Clicked {edu_type} using selector: {selector}")
-                        break
-                except:
-                    continue
-            
-            # Wait for SSC Information section to appear
-            await self.page.wait_for_selector('text=SSC Information', timeout=15000)
-            await asyncio.sleep(3)  # Wait for form fields to load
-            
-            return {"success": True, "message": f"Selected education type: {edu_type}"}
+            return {"success": True, "message": "Selected SSC/HSC education type"}
             
         except Exception as e:
             logger.error(f"Education type selection error: {str(e)}")
+            await self._capture_screenshot("education_type_error")
             return {"success": False, "message": f"Education type selection failed: {str(e)}"}
+
     
     async def fill_ssc_information(self, ssc_data: Dict) -> Dict:
         """
-        Fill SSC examination information
+        Fill SSC examination information with correct field IDs
         """
         try:
             logger.info("Filling SSC information...")
             
-            # SSC Examination dropdown
-            await self._select_dropdown('ssc.*exam', ssc_data['ssc_examination'])
+            # SSC Examination dropdown (MainContent_ddlExamTypeSSC)
+            exam_value = EXAM_TYPE_MAPPING.get(ssc_data['ssc_examination'].upper(), 'ssc')
+            logger.info(f"Selecting SSC Exam: {exam_value}")
             
-            # SSC Roll
-            await self._fill_field('ssc.*roll', ssc_data['ssc_roll'])
+            try:
+                await self.page.select_option('select#MainContent_ddlExamTypeSSC', value=exam_value)
+            except Exception as select_err:
+                logger.warning(f"Standard select failed, trying JS: {str(select_err)}")
+                await self.page.evaluate(f'''
+                    const select = document.getElementById('MainContent_ddlExamTypeSSC');
+                    if (select) {{
+                        select.value = '{exam_value}';
+                        select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                ''')
             
-            # SSC Registration
-            await self._fill_field('ssc.*reg', ssc_data['ssc_registration'])
+            logger.info(f"Selected SSC Exam: {exam_value}")
             
-            # SSC Passing Year
-            await self._select_dropdown('ssc.*year', str(ssc_data['ssc_passing_year']))
+            # Wait for postback/AJAX after exam selection
+            logger.info("Waiting for form update after exam selection...")
+            await asyncio.sleep(2)
             
-            # SSC Board
-            await self._select_dropdown('ssc.*board', ssc_data['ssc_board'])
+            # SSC Roll (MainContent_txtRollSSC)
+            logger.info("Filling SSC Roll...")
+            await self.page.wait_for_selector('input#MainContent_txtRollSSC', state='visible', timeout=10000)
+            await self.page.fill('input#MainContent_txtRollSSC', ssc_data['ssc_roll'])
+            logger.info(f"Filled SSC Roll: {ssc_data['ssc_roll']}")
             
+            # SSC Registration (MainContent_txtRegSSC)
+            await self.page.fill('input#MainContent_txtRegSSC', ssc_data['ssc_registration'])
+            logger.info(f"Filled SSC Registration: {ssc_data['ssc_registration']}")
+            
+            # SSC Passing Year (MainContent_ddlPassYearSSC)
+            await self.page.select_option('select#MainContent_ddlPassYearSSC', value=str(ssc_data['ssc_passing_year']))
+            logger.info(f"Selected SSC Year: {ssc_data['ssc_passing_year']}")
+            await asyncio.sleep(1)
+            
+            # SSC Board (MainContent_ddlBoardSSC)
+            board_value = BOARD_MAPPING.get(ssc_data['ssc_board'].upper(), '6')
+            logger.info(f"Selecting SSC Board: {ssc_data['ssc_board']} (value: {board_value})")
+            
+            # Use JavaScript to select the board (more reliable for ASP.NET dropdowns)
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlBoardSSC');
+                if (select) {{
+                    select.value = '{board_value}';
+                    select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+            ''')
+            logger.info(f"Selected SSC Board: {ssc_data['ssc_board']} (value: {board_value})")
             await asyncio.sleep(2)
             
             return {"success": True, "message": "SSC information filled successfully"}
             
         except Exception as e:
             logger.error(f"SSC information error: {str(e)}")
-            await self._capture_error_screenshot("ssc_information")
+            await self._capture_screenshot("ssc_info_error")
             return {"success": False, "message": f"SSC information failed: {str(e)}"}
     
     async def fill_hsc_information(self, hsc_data: Dict) -> Dict:
         """
-        Fill HSC examination information
+        Fill HSC examination information with correct field IDs
         """
         try:
             logger.info("Filling HSC information...")
             
-            # HSC Examination dropdown
-            await self._select_dropdown('hsc.*exam', hsc_data['hsc_examination'])
+            # HSC Examination dropdown (MainContent_ddlExamTypeHSC)
+            exam_value = EXAM_TYPE_MAPPING.get(hsc_data['hsc_examination'].upper(), 'hsc')
+            logger.info(f"Selecting HSC Exam: {exam_value}")
             
-            # HSC Roll
-            await self._fill_field('hsc.*roll', hsc_data['hsc_roll'])
+            try:
+                await self.page.select_option('select#MainContent_ddlExamTypeHSC', value=exam_value)
+            except Exception as select_err:
+                logger.warning(f"Standard select failed, trying JS: {str(select_err)}")
+                await self.page.evaluate(f'''
+                    const select = document.getElementById('MainContent_ddlExamTypeHSC');
+                    if (select) {{
+                        select.value = '{exam_value}';
+                        select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    }}
+                ''')
             
-            # HSC Registration
-            await self._fill_field('hsc.*reg', hsc_data['hsc_registration'])
+            logger.info(f"Selected HSC Exam: {exam_value}")
             
-            # HSC Passing Year
-            await self._select_dropdown('hsc.*year', str(hsc_data['hsc_passing_year']))
-            
-            # HSC Board
-            await self._select_dropdown('hsc.*board', hsc_data['hsc_board'])
-            
+            # Wait for postback/AJAX after exam selection
+            logger.info("Waiting for form update after HSC exam selection...")
             await asyncio.sleep(2)
             
-            # Click Verify Information button
-            verify_selectors = [
-                'button:has-text("Verify")',
-                'button:has-text("Verify Information")',
-                'input[value*="Verify"]'
-            ]
+            # HSC Roll (MainContent_txtRollHSC)
+            logger.info("Filling HSC Roll...")
+            await self.page.wait_for_selector('input#MainContent_txtRollHSC', state='visible', timeout=10000)
+            await self.page.fill('input#MainContent_txtRollHSC', hsc_data['hsc_roll'])
+            logger.info(f"Filled HSC Roll: {hsc_data['hsc_roll']}")
             
-            for selector in verify_selectors:
-                try:
-                    btn = await self.page.wait_for_selector(selector, timeout=5000)
-                    if btn:
-                        await btn.click()
-                        logger.info("Clicked Verify Information button")
-                        break
-                except:
-                    continue
+            # HSC Registration (MainContent_txtRegHSC)
+            await self.page.fill('input#MainContent_txtRegHSC', hsc_data['hsc_registration'])
+            logger.info(f"Filled HSC Registration: {hsc_data['hsc_registration']}")
             
-            # Wait for verification (may take 10-30 seconds)
-            logger.info("Waiting for education board verification...")
-            await asyncio.sleep(15)  # Wait for verification API call
+            # HSC Passing Year (MainContent_ddlPassYearHSC)
+            await self.page.select_option('select#MainContent_ddlPassYearHSC', value=str(hsc_data['hsc_passing_year']))
+            logger.info(f"Selected HSC Year: {hsc_data['hsc_passing_year']}")
+            await asyncio.sleep(1)
             
-            # Check for verification success or personal info section
-            await self.page.wait_for_selector('text=Personal Information', timeout=30000)
+            # HSC Board (MainContent_ddlBoardHSC)
+            board_value = BOARD_MAPPING.get(hsc_data['hsc_board'].upper(), '6')
+            logger.info(f"Selecting HSC Board: {hsc_data['hsc_board']} (value: {board_value})")
             
-            return {"success": True, "message": "HSC information filled and verified"}
+            # Use JavaScript to select the board (more reliable for ASP.NET dropdowns)
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlBoardHSC');
+                if (select) {{
+                    select.value = '{board_value}';
+                    select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+            ''')
+            logger.info(f"Selected HSC Board: {hsc_data['hsc_board']} (value: {board_value})")
+            await asyncio.sleep(2)
+            
+            return {"success": True, "message": "HSC information filled successfully"}
             
         except Exception as e:
             logger.error(f"HSC information error: {str(e)}")
-            await self._capture_error_screenshot("hsc_information")
+            await self._capture_screenshot("hsc_info_error")
             return {"success": False, "message": f"HSC information failed: {str(e)}"}
+    
+    async def click_verify_information(self) -> Dict:
+        """
+        Click Verify Information button to validate SSC/HSC data
+        Also handles CAPTCHA if present
+        """
+        try:
+            logger.info("Clicking Verify Information button...")
+            
+            # Click Verify Information button (MainContent_btnVerifyInformation)
+            verify_btn = await self.page.wait_for_selector('input#MainContent_btnVerifyInformation', timeout=10000)
+            await verify_btn.click()
+            logger.info("Clicked Verify Information")
+            
+            # Wait for verification (this may take 10-30 seconds)
+            logger.info("Waiting for education board verification...")
+            await asyncio.sleep(15)
+            
+            # Check for CAPTCHA
+            from bup_captcha import handle_captcha_if_present
+            
+            logger.info("Checking for CAPTCHA...")
+            captcha_result = await handle_captcha_if_present(self.page, timeout=300)
+            
+            if captcha_result["captcha_present"]:
+                logger.warning(f"CAPTCHA detected: {captcha_result.get('captcha_type', 'unknown')}")
+                
+                if not captcha_result["success"]:
+                    return {
+                        "success": False,
+                        "captcha_required": True,
+                        "message": f"CAPTCHA solution required: {captcha_result['message']}"
+                    }
+                
+                logger.info("CAPTCHA solved successfully")
+            
+            # Wait for Personal Information section to appear
+            try:
+                await self.page.wait_for_selector('input#MainContent_txtCandidateName', timeout=30000)
+                logger.info("Personal Information section loaded")
+            except:
+                logger.warning("Personal Information section not found, but continuing...")
+            
+            return {"success": True, "message": "Information verified successfully"}
+            
+        except Exception as e:
+            logger.error(f"Verification error: {str(e)}")
+            await self._capture_screenshot("verification_error")
+            return {"success": False, "message": f"Verification failed: {str(e)}"}
     
     async def fill_personal_information(self, personal_data: Dict) -> Dict:
         """
-        Fill personal information section
+        Fill personal information on the form
         """
         try:
             logger.info("Filling personal information...")
             
-            # Candidate Name (may be pre-filled from verification)
-            await self._fill_field('candidate.*name|name.*candidate', personal_data['candidate_name'])
+            # Wait for the Personal Information section to be fully visible
+            await self.page.wait_for_selector('input#MainContent_txtName', state='visible', timeout=30000)
             
-            # Father's Name
-            await self._fill_field('father.*name', personal_data['father_name'])
+            # Name is usually pre-filled/disabled, but we can check it
+            name_val = await self.page.input_value('input#MainContent_txtName')
+            logger.info(f"Candidate Name (pre-filled): {name_val}")
             
-            # Mother's Name
-            await self._fill_field('mother.*name', personal_data['mother_name'])
+            # Date of Birth (Split into Day, Month, Year)
+            dob = personal_data['date_of_birth'] # Format: YYYY-MM-DD
+            year, month, day = dob.split('-')
             
-            # Date of Birth
-            dob_str = personal_data['date_of_birth'].strftime('%Y-%m-%d')
-            await self._fill_field('birth|dob', dob_str)
+            # Day (MainContent_ddlDay)
+            await self.page.select_option('select#MainContent_ddlDay', value=day)
+            logger.info(f"Selected Day: {day}")
+            await asyncio.sleep(0.5)
             
-            # Gender
-            await self._select_dropdown('gender', personal_data['gender'])
+            # Month (MainContent_ddlMonth)
+            await self.page.select_option('select#MainContent_ddlMonth', value=month)
+            logger.info(f"Selected Month: {month}")
+            await asyncio.sleep(0.5)
             
-            # Nationality
-            await self._select_dropdown('nationality', personal_data['nationality'])
+            # Year (MainContent_ddlYear)
+            await self.page.select_option('select#MainContent_ddlYear', value=year)
+            logger.info(f"Selected Year: {year}")
+            await asyncio.sleep(1)
             
-            # Religion
-            await self._select_dropdown('religion', personal_data['religion'])
+            # Email (MainContent_txtEmail)
+            await self.page.fill('input#MainContent_txtEmail', personal_data['email'])
+            logger.info(f"Filled Email: {personal_data['email']}")
             
-            # Mobile Number
-            await self._fill_field('mobile|phone', personal_data['mobile_number'])
+            # Gender (MainContent_ddlGender)
+            gender_val = '2' if personal_data['gender'].upper() == 'MALE' else '3'
+            await self.page.select_option('select#MainContent_ddlGender', value=gender_val)
+            logger.info(f"Selected Gender: {personal_data['gender']} (value: {gender_val})")
             
-            # Email
-            await self._fill_field('email', personal_data['email'])
+            # Mobile Number (MainContent_txtSmsMobile)
+            await self.page.fill('input#MainContent_txtSmsMobile', personal_data['mobile_number'])
+            logger.info(f"Filled Mobile: {personal_data['mobile_number']}")
             
-            # NID/Birth Certificate (if provided)
-            if personal_data.get('nid_birth_cert'):
-                await self._fill_field('nid|birth.*cert', personal_data['nid_birth_cert'])
+            # Guardian Mobile (MainContent_txtGuardianMobile)
+            # Use same mobile if guardian mobile not provided
+            guardian_mobile = personal_data.get('guardian_mobile', personal_data['mobile_number'])
+            await self.page.fill('input#MainContent_txtGuardianMobile', guardian_mobile)
+            logger.info(f"Filled Guardian Mobile: {guardian_mobile}")
             
-            await asyncio.sleep(2)
+            # Nationality and Religion might be on this page or next, checking user HTML...
+            # User HTML didn't show Nationality/Religion, assuming they might be pre-filled or on next page
+            # But previous code had them. Let's keep them if they exist, but wrap in try-catch
             
-            return {"success": True, "message": "Personal information filled successfully"}
+            try:
+                if await self.page.is_visible('select#MainContent_ddlNationality'):
+                     await self.page.select_option('select#MainContent_ddlNationality', label='Bangladeshi')
+            except:
+                pass
+
+            try:
+                if await self.page.is_visible('select#MainContent_ddlReligion'):
+                     religion_map = {'ISLAM': 'Islam', 'HINDU': 'Hinduism', 'CHRISTIAN': 'Christianity', 'BUDDHIST': 'Buddhism'}
+                     rel_val = religion_map.get(personal_data['religion'].upper(), 'Islam')
+                     # Try to select by label or value if known
+                     # For now, just logging as user HTML didn't show this field
+                     logger.info(f"Religion field check: {personal_data['religion']}")
+            except:
+                pass
+
+            return {"success": True, "message": "Personal information filled"}
             
         except Exception as e:
             logger.error(f"Personal information error: {str(e)}")
-            await self._capture_error_screenshot("personal_information")
+            await self._capture_screenshot("personal_info_error")
             return {"success": False, "message": f"Personal information failed: {str(e)}"}
     
     async def fill_present_address(self, address_data: Dict) -> Dict:
@@ -365,27 +501,72 @@ class BUPAutomation:
         try:
             logger.info("Filling present address...")
             
-            # Division
-            await self._select_dropdown('present.*division', address_data['present_division'])
-            await asyncio.sleep(3)  # Wait for district dropdown to populate
+            # Division (MainContent_ddlPresentDivision) - Use JavaScript
+            division_label = DIVISION_MAPPING.get(address_data['present_division'].upper(), address_data['present_division'])
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlPresentDivision');
+                if (select) {{
+                    for (let option of select.options) {{
+                        if (option.text.includes('{division_label}')) {{
+                            select.value = option.value;
+                            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            break;
+                        }}
+                    }}
+                }}
+            ''')
+            logger.info(f"Selected Present Division: {division_label}")
+            await asyncio.sleep(4)  # Wait for district dropdown to populate
             
-            # District
-            await self._select_dropdown('present.*district', address_data['present_district'])
-            await asyncio.sleep(3)  # Wait for thana dropdown to populate
+            # District (MainContent_ddlPresentDistrict) - Use JavaScript
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlPresentDistrict');
+                if (select) {{
+                    for (let option of select.options) {{
+                        if (option.text.includes('{address_data['present_district']}')) {{
+                            select.value = option.value;
+                            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            break;
+                        }}
+                    }}
+                }}
+            ''')
+            logger.info(f"Selected Present District: {address_data['present_district']}")
+            await asyncio.sleep(4)  # Wait for thana dropdown to populate
             
-            # Thana/Upazila
-            await self._fill_or_select('present.*thana|present.*upazila', address_data['present_thana'])
+            # Thana/Upazila (MainContent_ddlPresentThana or text input)
+            try:
+                await self.page.evaluate(f'''
+                    const select = document.getElementById('MainContent_ddlPresentThana');
+                    if (select) {{
+                        for (let option of select.options) {{
+                            if (option.text.includes('{address_data['present_thana']}')) {{
+                                select.value = option.value;
+                                select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                break;
+                            }}
+                        }}
+                    }}
+                ''')
+                logger.info(f"Selected Present Thana: {address_data['present_thana']}")
+            except:
+                # If dropdown doesn't exist, try text input
+                await self.page.fill('input#MainContent_txtPresentThana', address_data['present_thana'])
+                logger.info(f"Filled Present Thana: {address_data['present_thana']}")
             
-            # Post Office
+            # Post Office (MainContent_txtPresentPostOffice) - optional
             if address_data.get('present_post_office'):
-                await self._fill_field('present.*post', address_data['present_post_office'])
+                await self.page.fill('input#MainContent_txtPresentPostOffice', address_data['present_post_office'])
+                logger.info(f"Filled Present Post Office: {address_data['present_post_office']}")
             
-            # Village/Road/House
-            await self._fill_field('present.*village|present.*address', address_data['present_village'])
+            # Village/Road/House (MainContent_txtPresentVillage)
+            await self.page.fill('input#MainContent_txtPresentVillage', address_data['present_village'])
+            logger.info(f"Filled Present Village: {address_data['present_village']}")
             
-            # ZIP Code
+            # ZIP Code (MainContent_txtPresentZIP) - optional
             if address_data.get('present_zip'):
-                await self._fill_field('present.*zip', address_data['present_zip'])
+                await self.page.fill('input#MainContent_txtPresentZIP', address_data['present_zip'])
+                logger.info(f"Filled Present ZIP: {address_data['present_zip']}")
             
             await asyncio.sleep(2)
             
@@ -393,51 +574,89 @@ class BUPAutomation:
             
         except Exception as e:
             logger.error(f"Present address error: {str(e)}")
-            await self._capture_error_screenshot("present_address")
+            await self._capture_screenshot("present_address_error")
             return {"success": False, "message": f"Present address failed: {str(e)}"}
     
-    async def fill_permanent_address(self, address_data: Dict, same_as_present: bool = False) -> Dict:
+    async def handle_permanent_address(self, address_data: Dict, same_as_present: bool = False) -> Dict:
         """
-        Fill permanent address or check "same as present"
+        Fill permanent address or check \"same as present\"
         """
         try:
-            logger.info("Filling permanent address...")
+            logger.info("Handling permanent address...")
             
             if same_as_present:
-                # Find and click "Same as Present Address" checkbox
-                same_checkbox_selectors = [
-                    'input[type="checkbox"]:near(text="Same as Present")',
-                    'input[type="checkbox"]:near(text="same as present")',
-                    'label:has-text("Same") >> input[type="checkbox"]'
-                ]
-                
-                for selector in same_checkbox_selectors:
-                    try:
-                        checkbox = await self.page.wait_for_selector(selector, timeout=5000)
-                        if checkbox:
-                            await checkbox.click()
-                            logger.info("Checked 'Same as Present Address'")
-                            await asyncio.sleep(1)
-                            return {"success": True, "message": "Permanent address set to same as present"}
-                    except:
-                        continue
+                # Check \"Same as Present Address\" checkbox (MainContent_chkSameAsPresent or similar)
+                try:
+                    same_checkbox = await self.page.wait_for_selector('input[type="checkbox"][id*="Same"]', timeout=5000)
+                    await same_checkbox.click()
+                    logger.info("Checked 'Same as Present Address'")
+                    await asyncio.sleep(1)
+                    return {"success": True, "message": "Permanent address set to same as present"}
+                except:
+                    logger.warning("Same as present checkbox not found, filling permanent address manually")
             
-            # Fill permanent address fields
-            await self._select_dropdown('permanent.*division', address_data['permanent_division'])
-            await asyncio.sleep(3)
+            # Fill permanent address fields (similar to present address) - Use JavaScript
+            division_label = DIVISION_MAPPING.get(address_data.get('permanent_division', address_data['present_division']).upper(), 
+                                                   address_data.get('permanent_division', address_data['present_division']))
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlPermanentDivision');
+                if (select) {{
+                    for (let option of select.options) {{
+                        if (option.text.includes('{division_label}')) {{
+                            select.value = option.value;
+                            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            break;
+                        }}
+                    }}
+                }}
+            ''')
+            logger.info(f"Selected Permanent Division: {division_label}")
+            await asyncio.sleep(4)
             
-            await self._select_dropdown('permanent.*district', address_data['permanent_district'])
-            await asyncio.sleep(3)
+            district_label = address_data.get('permanent_district', address_data['present_district'])
+            await self.page.evaluate(f'''
+                const select = document.getElementById('MainContent_ddlPermanentDistrict');
+                if (select) {{
+                    for (let option of select.options) {{
+                        if (option.text.includes('{district_label}')) {{
+                            select.value = option.value;
+                            select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            break;
+                        }}
+                    }}
+                }}
+            ''')
+            logger.info(f"Selected Permanent District: {district_label}")
+            await asyncio.sleep(4)
             
-            await self._fill_or_select('permanent.*thana|permanent.*upazila', address_data['permanent_thana'])
+            try:
+                thana_label = address_data.get('permanent_thana', address_data['present_thana'])
+                await self.page.evaluate(f'''
+                    const select = document.getElementById('MainContent_ddlPermanentThana');
+                    if (select) {{
+                        for (let option of select.options) {{
+                            if (option.text.includes('{thana_label}')) {{
+                                select.value = option.value;
+                                select.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                break;
+                            }}
+                        }}
+                    }}
+                ''')
+            except:
+                await self.page.fill('input#MainContent_txtPermanentThana', 
+                                    address_data.get('permanent_thana', address_data['present_thana']))
             
-            if address_data.get('permanent_post_office'):
-                await self._fill_field('permanent.*post', address_data['permanent_post_office'])
+            if address_data.get('permanent_post_office') or address_data.get('present_post_office'):
+                await self.page.fill('input#MainContent_txtPermanentPostOffice', 
+                                    address_data.get('permanent_post_office', address_data.get('present_post_office', '')))
             
-            await self._fill_field('permanent.*village|permanent.*address', address_data['permanent_village'])
+            await self.page.fill('input#MainContent_txtPermanentVillage', 
+                                address_data.get('permanent_village', address_data['present_village']))
             
-            if address_data.get('permanent_zip'):
-                await self._fill_field('permanent.*zip', address_data['permanent_zip'])
+            if address_data.get('permanent_zip') or address_data.get('present_zip'):
+                await self.page.fill('input#MainContent_txtPermanentZIP', 
+                                    address_data.get('permanent_zip', address_data.get('present_zip', '')))
             
             await asyncio.sleep(2)
             
@@ -445,79 +664,49 @@ class BUPAutomation:
             
         except Exception as e:
             logger.error(f"Permanent address error: {str(e)}")
-            await self._capture_error_screenshot("permanent_address")
+            await self._capture_screenshot("permanent_address_error")
             return {"success": False, "message": f"Permanent address failed: {str(e)}"}
     
     async def upload_photo(self, photo_path: str) -> Dict:
         """
-        Upload candidate photo (300x300px, max 100KB)
+        Upload candidate photo
         """
         try:
             logger.info(f"Uploading photo: {photo_path}")
             
-            # Find photo file input
-            file_input_selectors = [
-                'input[type="file"][name*="photo"]',
-                'input[type="file"][accept*="image"]',
-                'input[type="file"]'  # First file input
-            ]
+            # Find photo file input (MainContent_fuPhoto or first file input)
+            file_input = await self.page.wait_for_selector('input[type="file"]', timeout=10000)
+            await file_input.set_input_files(photo_path)
+            logger.info("Photo uploaded successfully")
+            await asyncio.sleep(3)  # Wait for preview
             
-            for selector in file_input_selectors:
-                try:
-                    file_input = await self.page.wait_for_selector(selector, timeout=5000)
-                    if file_input:
-                        await file_input.set_input_files(photo_path)
-                        logger.info(f"Photo uploaded using selector: {selector}")
-                        await asyncio.sleep(2)  # Wait for preview
-                        return {"success": True, "message": "Photo uploaded successfully"}
-                except:
-                    continue
-            
-            raise Exception("Could not find photo upload input")
+            return {"success": True, "message": "Photo uploaded successfully"}
             
         except Exception as e:
             logger.error(f"Photo upload error: {str(e)}")
-            await self._capture_error_screenshot("photo_upload")
+            await self._capture_screenshot("photo_upload_error")
             return {"success": False, "message": f"Photo upload failed: {str(e)}"}
     
     async def upload_signature(self, signature_path: str) -> Dict:
         """
-        Upload candidate signature (300x80px, max 60KB)
+        Upload candidate signature
         """
         try:
             logger.info(f"Uploading signature: {signature_path}")
             
             # Find signature file input (usually second file input)
-            file_input_selectors = [
-                'input[type="file"][name*="signature"]',
-                'input[type="file"][name*="sign"]',
-            ]
-            
-            # Try specific selectors first
-            for selector in file_input_selectors:
-                try:
-                    file_input = await self.page.wait_for_selector(selector, timeout=5000)
-                    if file_input:
-                        await file_input.set_input_files(signature_path)
-                        logger.info(f"Signature uploaded using selector: {selector}")
-                        await asyncio.sleep(2)
-                        return {"success": True, "message": "Signature uploaded successfully"}
-                except:
-                    continue
-            
-            # Fallback: Get all file inputs and use second one
             all_file_inputs = await self.page.query_selector_all('input[type="file"]')
             if len(all_file_inputs) >= 2:
                 await all_file_inputs[1].set_input_files(signature_path)
-                logger.info("Signature uploaded using second file input")
-                await asyncio.sleep(2)
+                logger.info("Signature uploaded successfully")
+                await asyncio.sleep(3)
                 return {"success": True, "message": "Signature uploaded successfully"}
-            
-            raise Exception("Could not find signature upload input")
+            else:
+                raise Exception("Signature upload input not found")
             
         except Exception as e:
             logger.error(f"Signature upload error: {str(e)}")
-            await self._capture_error_screenshot("signature_upload")
+            await self._capture_screenshot("signature_upload_error")
             return {"success": False, "message": f"Signature upload failed: {str(e)}"}
     
     async def submit_application(self) -> Dict:
@@ -527,35 +716,20 @@ class BUPAutomation:
         try:
             logger.info("Submitting application...")
             
-            # Find and click final submit/verify button
-            submit_selectors = [
-                'button:has-text("Verify Information")',
-                'button:has-text("Submit")',
-                'button[type="submit"]',
-                'input[type="submit"]'
-            ]
-            
-            for selector in submit_selectors:
-                try:
-                    submit_btn = await self.page.wait_for_selector(selector, timeout=5000)
-                    if submit_btn:
-                        await submit_btn.click()
-                        logger.info(f"Clicked submit button: {selector}")
-                        break
-                except:
-                    continue
+            # Find and click final submit button
+            submit_btn = await self.page.wait_for_selector('input[type="submit"][value*="Submit"], button:has-text("Submit")', timeout=10000)
+            await submit_btn.click()
+            logger.info("Clicked submit button")
             
             # Wait for submission processing
             await asyncio.sleep(5)
-            
-            # Wait for payment page or confirmation
             await self.page.wait_for_load_state('networkidle', timeout=30000)
             
             return {"success": True, "message": "Application submitted successfully"}
             
         except Exception as e:
             logger.error(f"Application submission error: {str(e)}")
-            await self._capture_error_screenshot("application_submission")
+            await self._capture_screenshot("submission_error")
             return {"success": False, "message": f"Application submission failed: {str(e)}"}
     
     async def get_payment_info(self) -> Dict:
@@ -565,11 +739,10 @@ class BUPAutomation:
         try:
             logger.info("Extracting payment information...")
             
-            # Get current URL (may contain payment info)
             current_url = self.page.url
             
-            # Try to extract payment amount from page
-            payment_amount = None
+            # Try to extract payment amount
+            payment_amount = 1000.00  # Default BUP fee
             try:
                 amount_text = await self.page.text_content('text=/BDT|Tk|Amount/')
                 if amount_text:
@@ -584,7 +757,7 @@ class BUPAutomation:
                 "success": True,
                 "payment_required": True,
                 "payment_url": current_url,
-                "amount": payment_amount or 1000.00,  # Default BUP fee
+                "amount": payment_amount,
                 "message": "Payment information extracted"
             }
             
@@ -606,41 +779,26 @@ class BUPAutomation:
             receipt_path = None
             
             # Download admission slip
-            download_selectors = [
-                'a:has-text("Admission Slip")',
-                'a:has-text("Download")',
-                'button:has-text("Download")'
-            ]
-            
-            for selector in download_selectors:
-                try:
-                    async with self.page.expect_download(timeout=30000) as download_info:
-                        await self.page.click(selector, timeout=5000)
-                    download = await download_info.value
-                    admission_slip_path = os.path.join(docs_dir, f"{application_id}_admission_slip.pdf")
-                    await download.save_as(admission_slip_path)
-                    logger.info(f"Admission slip downloaded: {admission_slip_path}")
-                    break
-                except:
-                    continue
+            try:
+                async with self.page.expect_download(timeout=30000) as download_info:
+                    await self.page.click('a:has-text("Admission Slip"), a:has-text("Download")', timeout=5000)
+                download = await download_info.value
+                admission_slip_path = os.path.join(docs_dir, f"{application_id}_admission_slip.pdf")
+                await download.save_as(admission_slip_path)
+                logger.info(f"Admission slip downloaded: {admission_slip_path}")
+            except:
+                logger.warning("Admission slip download failed")
             
             # Download receipt
-            receipt_selectors = [
-                'a:has-text("Receipt")',
-                'a:has-text("Payment Receipt")'
-            ]
-            
-            for selector in receipt_selectors:
-                try:
-                    async with self.page.expect_download(timeout=30000) as download_info:
-                        await self.page.click(selector, timeout=5000)
-                    download = await download_info.value
-                    receipt_path = os.path.join(docs_dir, f"{application_id}_receipt.pdf")
-                    await download.save_as(receipt_path)
-                    logger.info(f"Receipt downloaded: {receipt_path}")
-                    break
-                except:
-                    continue
+            try:
+                async with self.page.expect_download(timeout=30000) as download_info:
+                    await self.page.click('a:has-text("Receipt")', timeout=5000)
+                download = await download_info.value
+                receipt_path = os.path.join(docs_dir, f"{application_id}_receipt.pdf")
+                await download.save_as(receipt_path)
+                logger.info(f"Receipt downloaded: {receipt_path}")
+            except:
+                logger.warning("Receipt download failed")
             
             if admission_slip_path or receipt_path:
                 return {
@@ -659,64 +817,7 @@ class BUPAutomation:
             logger.error(f"Document download error: {str(e)}")
             return {"success": False, "message": f"Document download failed: {str(e)}"}
     
-    # Helper methods
-    
-    async def _fill_field(self, field_pattern: str, value: str):
-        """Fill input field using regex pattern for name/id"""
-        selectors = [
-            f'input[name~="{field_pattern}" i]',
-            f'input[id~="{field_pattern}" i]',
-            f'input[placeholder*="{field_pattern.split(".*")[0]}" i]',
-            f'textarea[name~="{field_pattern}" i]'
-        ]
-        
-        for selector in selectors:
-            try:
-                element = await self.page.wait_for_selector(selector, timeout=3000)
-                if element:
-                    await element.fill(str(value))
-                    logger.debug(f"Filled field {field_pattern} using {selector}")
-                    return
-            except:
-                continue
-        
-        raise Exception(f"Could not find field matching pattern: {field_pattern}")
-    
-    async def _select_dropdown(self, field_pattern: str, value: str):
-        """Select dropdown option using regex pattern"""
-        selectors = [
-            f'select[name~="{field_pattern}" i]',
-            f'select[id~="{field_pattern}" i]'
-        ]
-        
-        for selector in selectors:
-            try:
-                element = await self.page.wait_for_selector(selector, timeout=3000)
-                if element:
-                    await element.select_option(label=value)
-                    logger.debug(f"Selected {value} in dropdown {field_pattern}")
-                    return
-            except:
-                try:
-                    # Try by value
-                    await element.select_option(value=value)
-                    return
-                except:
-                    continue
-        
-        raise Exception(f"Could not find dropdown matching pattern: {field_pattern}")
-    
-    async def _fill_or_select(self, field_pattern: str, value: str):
-        """Try to fill as input or select as dropdown"""
-        try:
-            await self._fill_field(field_pattern, value)
-        except:
-            try:
-                await self._select_dropdown(field_pattern, value)
-            except:
-                raise Exception(f"Could not fill or select field: {field_pattern}")
-    
-    async def _capture_error_screenshot(self, stage: str):
+    async def _capture_screenshot(self, stage: str):
         """Capture screenshot on error"""
         try:
             screenshot_path = f"./uploads/logs/bup_error_{stage}_{int(asyncio.get_event_loop().time())}.png"

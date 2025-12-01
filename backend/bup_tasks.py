@@ -53,33 +53,23 @@ async def run_bup_automation_async(application_id: str, job_id: str):
             db, application_id, "running", "initialization", "Initializing browser..."
         )
         
-        # Step 1: Navigate to admission page
+        # Step 1: Navigate to admission page and select faculty
         logger.info(f"[{application_id}] Navigating to BUP admission page...")
         bup_crud.update_bup_application_status(
-            db, application_id, "running", "navigation", "Loading BUP admission page..."
+            db, application_id, "running", "navigation", f"Loading BUP admission page and selecting {app.faculty}..."
         )
         
-        nav_result = await automation.navigate_to_admission_page()
+        nav_result = await automation.navigate_and_select_faculty(app.faculty)
         if not nav_result["success"]:
-            raise Exception(f"Navigation failed: {nav_result['message']}")
+            raise Exception(f"Navigation/Faculty selection failed: {nav_result['message']}")
         
-        # Step 2: Select faculty
-        logger.info(f"[{application_id}] Selecting faculty...")
-        bup_crud.update_bup_application_status(
-            db, application_id, "running", "faculty_selection", f"Selecting faculty: {app.faculty}"
-        )
-        
-        faculty_result = await automation.select_faculty(app.faculty)
-        if not faculty_result["success"]:
-            raise Exception(f"Faculty selection failed: {faculty_result['message']}")
-        
-        # Step 3: Select education type
+        # Step 2: Select education type (SSC/HSC)
         logger.info(f"[{application_id}] Selecting education type...")
         bup_crud.update_bup_application_status(
             db, application_id, "running", "education_type", "Selecting SSC/HSC education type..."
         )
         
-        edu_type_result = await automation.select_education_type("SSC/HSC")
+        edu_type_result = await automation.select_education_type_ssc_hsc()
         if not edu_type_result["success"]:
             raise Exception(f"Education type selection failed: {edu_type_result['message']}")
         
@@ -118,6 +108,16 @@ async def run_bup_automation_async(application_id: str, job_id: str):
         hsc_result = await automation.fill_hsc_information(hsc_data)
         if not hsc_result["success"]:
             raise Exception(f"HSC information failed: {hsc_result['message']}")
+        
+        # Step 5.5: Click Verify Information
+        logger.info(f"[{application_id}] Verifying SSC/HSC information...")
+        bup_crud.update_bup_application_status(
+            db, application_id, "running", "verification", "Verifying education board information..."
+        )
+        
+        verify_result = await automation.click_verify_information()
+        if not verify_result["success"]:
+            raise Exception(f"Verification failed: {verify_result['message']}")
         
         # Step 6: Fill personal information
         logger.info(f"[{application_id}] Filling personal information...")
@@ -168,7 +168,7 @@ async def run_bup_automation_async(application_id: str, job_id: str):
         )
         
         if app.same_as_present:
-            permanent_address_result = await automation.fill_permanent_address({}, same_as_present=True)
+            permanent_address_result = await automation.handle_permanent_address(present_address_data, same_as_present=True)
         else:
             permanent_address_data = {
                 "permanent_division": app.permanent_division,
@@ -176,9 +176,14 @@ async def run_bup_automation_async(application_id: str, job_id: str):
                 "permanent_thana": app.permanent_thana,
                 "permanent_post_office": app.permanent_post_office,
                 "permanent_village": app.permanent_village,
-                "permanent_zip": app.permanent_zip
+                "permanent_zip": app.permanent_zip,
+                "present_division": app.present_division,
+                "present_district": app.present_district,
+                "present_thana": app.present_thana,
+                "present_village": app.present_village,
+                "present_zip": app.present_zip
             }
-            permanent_address_result = await automation.fill_permanent_address(permanent_address_data, same_as_present=False)
+            permanent_address_result = await automation.handle_permanent_address(permanent_address_data, same_as_present=False)
         
         if not permanent_address_result["success"]:
             raise Exception(f"Permanent address failed: {permanent_address_result['message']}")
